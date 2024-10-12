@@ -1,0 +1,92 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'idea'
+    id 'eclipse'
+    id 'org.ajoberstar.grgit' version '5.2.1'
+}
+
+group = "${project_group}"
+version = "${project_version}"
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://repository.atlasworld.fr/repository/maven-public/"
+    }
+}
+
+dependencies {
+    api "fr.atlasworld.common:common:${atlas_common_version}"
+}
+
+eclipse {
+    classpath {
+        downloadSources = true
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+    }
+}
+
+compileJava {
+    options.encoding = "UTF-8"
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(project.java_version))
+
+    withJavadocJar()
+    withSourcesJar()
+}
+
+publishing {
+    boolean isSnapshot = System.getenv("RELEASE") != 'true';
+
+    repositories {
+        maven {
+            name 'AtlasWorld-Repo'
+
+            def release = "https://repository.atlasworld.fr/repository/maven-release/"
+            def snapshot = "https://repository.atlasworld.fr/repository/maven-snapshot/"
+            url = isSnapshot ? snapshot : release
+
+            credentials {
+                username = System.getenv("AW_REPO_USERNAME")
+                password = System.getenv("AW_REPO_PASSWORD")
+            }
+
+            metadataSources {
+                gradleMetadata()
+            }
+        }
+    }
+    publications {
+        AtlasCommon(MavenPublication) {
+            from components.java
+
+            def snapshot = "${project_version}-${grgit.head().id.subSequence(0, 5)}"
+
+            try {
+                version = isSnapshot ? snapshot : grgit.tag.list().get(0).getName();
+            } catch (IndexOutOfBoundsException e) {
+                version = "undefined"
+            }
+
+            pom {
+                name = 'AtlasCommon'
+                description = 'Common Code Utilities for AtlasWorld.'
+                licenses {
+                    license {
+                        name = 'GNU-GPL-v2.0'
+
+                        url = 'https://github.com/AtlasWorldMC/EventFlow/blob/master/LICENSE'
+                    }
+                }
+            }
+        }
+    }
+}
