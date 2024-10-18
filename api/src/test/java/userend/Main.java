@@ -2,6 +2,7 @@ package userend;
 
 import fr.atlasworld.event.api.Event;
 import fr.atlasworld.event.api.EventNode;
+import fr.atlasworld.event.api.executor.EventExecutor;
 import userend.event.TaskCompleteEvent;
 import userend.listener.TaskListener;
 
@@ -23,12 +24,12 @@ public class Main {
         threads.forEach(TaskExecutorThread::start);
         Random random = new Random();
 
-        rootNode.addListener(new TaskListener(), builder -> {});
+        rootNode.addListener(new TaskListener(), builder -> builder.executor(EventExecutor.syncExecutor));
 
         int selectedIsolated = random.nextInt(0, threads.size());
         threads.get(selectedIsolated).eventNode().addListener(TaskCompleteEvent.class, event -> {
             System.out.println("ISOLATED #" + selectedIsolated + ": A Task finished on my executor!");
-        }, builder -> {});
+        }, builder -> builder.executor(EventExecutor.syncExecutor));
 
         while (true) {
             int executor = random.nextInt(0, threads.size());

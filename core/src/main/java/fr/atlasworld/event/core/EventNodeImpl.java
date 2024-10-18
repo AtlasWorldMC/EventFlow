@@ -3,26 +3,36 @@ package fr.atlasworld.event.core;
 import com.google.common.base.Preconditions;
 import fr.atlasworld.common.concurrent.action.CompositeFutureAction;
 import fr.atlasworld.common.concurrent.action.FutureAction;
+import fr.atlasworld.common.concurrent.action.SimpleFutureAction;
+import fr.atlasworld.common.logging.LogUtils;
 import fr.atlasworld.event.api.Event;
 import fr.atlasworld.event.api.EventNode;
 import fr.atlasworld.event.api.listener.EventHandler;
 import fr.atlasworld.event.api.listener.EventListener;
 import fr.atlasworld.event.api.listener.EventListenerBuilder;
+import fr.atlasworld.event.core.listener.LambdaRegisteredListener;
+import fr.atlasworld.event.core.listener.ListenerSettings;
+import fr.atlasworld.event.core.listener.MethodRegisteredListener;
+import fr.atlasworld.event.core.listener.RegisteredListener;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class EventNodeImpl<E extends Event> implements EventNode<E> {
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     private final String name;
     private final Class<E> eventType;
     private final Predicate<E> eventCondition;
-    private final Map<String, EventNode<?>> childrens;
-    private final Set<EventListener> listeners;
+    private final Map<String, EventNodeImpl<?>> children;
+    private final Map<Class<? extends E>, List<RegisteredListener<E>>> listeners;
 
     public EventNodeImpl(String name, Class<E> eventType, Predicate<E> eventCondition) {
         this.name = name;
@@ -30,8 +40,8 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
 
         this.eventCondition = eventCondition == null ? event -> true : eventCondition;
 
-        this.childrens = new ConcurrentHashMap<>();
-        this.listeners = new CopyOnWriteArraySet<>();
+        this.children = new ConcurrentHashMap<>();
+        this.listeners = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -43,25 +53,52 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     public @NotNull <T extends E> FutureAction<T> callEvent(@NotNull T event) {
         Preconditions.checkNotNull(event);
 
-        CompositeFutureAction.CompositeBuilder futureBuilder = CompositeFutureAction.builder();
+        if (!this.eventCondition.test(event))
+            return new SimpleFutureAction<T>().complete(event);
 
+        CompositeFutureAction.CompositeBuilder builder = CompositeFutureAction.builder();
 
+        for (EventNodeImpl<?> node : this.children.values()) {
+            builder.add(node.propagateEvent(event));
+        }
+
+        for (RegisteredListener<E> listener : this.listeners.get(event.getClass())) {
+            builder.add(listener.callEvent(event));
+        }
+
+        SimpleFutureAction<T> future = new SimpleFutureAction<>();
+        FutureAction<Void> groupedFuture = builder.build();
+        groupedFuture.onFailure(future::fail)
+                .onSuccess(unused -> future.complete(event));
+
+        return future;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <T extends Event> FutureAction<T> propagateEvent(@NotNull T event) {
+        Preconditions.checkNotNull(event);
+
+        if (!this.eventType.isInstance(event)) // Check if the event is the same as this event type.
+            return new SimpleFutureAction<T>().complete(event);
+
+        return (FutureAction<T>) this.callEvent((E) event);
     }
 
     @Override
     public <T extends E> void addChildNode(@NotNull EventNode<T> node) {
         Preconditions.checkNotNull(node);
+        Preconditions.checkArgument(node instanceof EventNodeImpl, "Unsupported EventNode.");
 
-        this.childrens.put(node.name(), node);
+        this.children.put(node.name(), (EventNodeImpl<?>) node);
     }
 
     @Override
     public EventNode<E> createChildNode(@NotNull String name) {
         Preconditions.checkNotNull(name);
 
-        EventNode<E> node = new EventNodeImpl<>(name, this.eventType, null);
+        EventNodeImpl<E> node = new EventNodeImpl<>(name, this.eventType, null);
 
-        this.childrens.put(name, node);
+        this.children.put(name, node);
         return node;
     }
 
@@ -70,9 +107,9 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(name);
         Preconditions.checkNotNull(filter);
 
-        EventNode<E> node = new EventNodeImpl<>(name, this.eventType, filter);
+        EventNodeImpl<E> node = new EventNodeImpl<>(name, this.eventType, filter);
 
-        this.childrens.put(name, node);
+        this.children.put(name, node);
         return node;
     }
 
@@ -81,9 +118,9 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(name);
         Preconditions.checkNotNull(eventType);
 
-        EventNode<T> node = new EventNodeImpl<>(name, eventType, null);
+        EventNodeImpl<T> node = new EventNodeImpl<>(name, eventType, null);
 
-        this.childrens.put(name, node);
+        this.children.put(name, node);
         return node;
     }
 
@@ -93,9 +130,9 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(eventType);
         Preconditions.checkNotNull(filter);
 
-        EventNode<T> node = new EventNodeImpl<>(name, eventType, filter);
+        EventNodeImpl<T> node = new EventNodeImpl<>(name, eventType, filter);
 
-        this.childrens.put(name, node);
+        this.children.put(name, node);
         return node;
     }
 
@@ -103,35 +140,88 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     public @Nullable EventNode<?> removeChildNode(@NotNull String name) {
         Preconditions.checkNotNull(name);
 
-        return this.childrens.remove(name);
+        return this.children.remove(name);
     }
 
     @Override
     public @Nullable EventNode<?> removeChildNode(@NotNull EventNode<?> node) {
         Preconditions.checkNotNull(node);
 
-        return this.childrens.remove(node.name());
+        return this.children.remove(node.name());
     }
 
     @Override
     public @NotNull Set<EventNode<?>> children() {
-        return Set.copyOf(this.childrens.values());
+        return Set.copyOf(this.children.values());
     }
 
     @Override
     public @NotNull Optional<EventNode<?>> child(@NotNull String name) {
         Preconditions.checkNotNull(name);
 
-        return Optional.ofNullable(this.childrens.get(name));
+        return Optional.ofNullable(this.children.get(name));
     }
 
     @Override
-    public <T extends E> void addListener(@NotNull Class<T> event, @NotNull EventHandler<T> handler, @NotNull Consumer<EventListenerBuilder<T>> builder) {
+    @SuppressWarnings("unchecked")
+    public <T extends E> void addListener(@NotNull Class<T> eventType, @NotNull EventHandler<T> handler, @NotNull Consumer<EventListenerBuilder<T>> builder) {
+        Preconditions.checkNotNull(eventType);
+        Preconditions.checkNotNull(handler);
+        Preconditions.checkNotNull(builder);
 
+        ListenerSettings.Builder<T> settings = new ListenerSettings.Builder<>();
+        builder.accept(settings);
+
+        synchronized (this.listeners) {
+            this.listeners.computeIfAbsent(eventType, k -> new ArrayList<>())
+                    .add((LambdaRegisteredListener<E>) new LambdaRegisteredListener<T>(settings.build(), handler));
+        }
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void addListener(@NotNull EventListener listener, @NotNull Consumer<EventListenerBuilder<E>> builder) {
+        Preconditions.checkNotNull(listener);
+        Preconditions.checkNotNull(builder);
 
+        ListenerSettings.Builder<E> settings = new ListenerSettings.Builder<>();
+        builder.accept(settings);
+        Class<? extends EventListener> listenerClass = listener.getClass();
+
+        for (Method method : listenerClass.getDeclaredMethods()) {
+
+            if (!method.isAnnotationPresent(fr.atlasworld.event.api.annotation.EventHandler.class)) {
+                LOGGER.debug("Method {}#{} skipped, not annotated with @EventHandler.", listenerClass.getSimpleName(), method.getName());
+                continue;
+            }
+
+            if (method.getParameterCount() != 1) {
+                LOGGER.error("Method {}#{} has more than one parameter!", listenerClass.getSimpleName(), method.getName());
+                continue;
+            }
+
+            Parameter parameter = method.getParameters()[0];
+
+            if (!Event.class.isAssignableFrom(parameter.getType())) {
+                LOGGER.error("Method {}#{} parameter is not an event!", listenerClass.getSimpleName(), method.getName());
+                continue;
+            }
+
+            if (this.eventType.isAssignableFrom(parameter.getType())) {
+                LOGGER.debug("WARN: Method {}#{} parameter event will never get called, event doesn't inherit this node event type.",
+                        listenerClass.getSimpleName(), method.getName());
+
+                // Even if it is a valid listener method,
+                // it's a waste to register a listener that will never be called.
+                continue;
+            }
+
+            Class<? extends E> eventClass = (Class<? extends E>) parameter.getType();
+            MethodRegisteredListener<E> methodListener =
+                    new MethodRegisteredListener<>(settings.build(), listener, method);
+
+            this.listeners.computeIfAbsent(eventClass, k -> new ArrayList<>())
+                    .add(methodListener);
+        }
     }
 }

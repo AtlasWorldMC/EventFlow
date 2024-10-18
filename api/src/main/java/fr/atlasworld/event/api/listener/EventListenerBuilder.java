@@ -2,7 +2,9 @@ package fr.atlasworld.event.api.listener;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import fr.atlasworld.common.annotation.OptionalBuilderArgument;
+import fr.atlasworld.common.annotation.RequiredBuilderArgument;
 import fr.atlasworld.event.api.Event;
+import fr.atlasworld.event.api.executor.EventExecutor;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.EventListener;
@@ -17,6 +19,18 @@ import java.util.function.Predicate;
 public interface EventListenerBuilder<E extends Event> {
 
     /**
+     * Sets the of this listener.
+     *
+     * @param executor executor that is executing the listener.
+     *
+     * @return instance of this builder.
+     */
+    @NotNull
+    @CanIgnoreReturnValue
+    @RequiredBuilderArgument
+    EventListenerBuilder<E> executor(@NotNull EventExecutor executor);
+
+    /**
      * Sets the handler when the listener fails to properly handle the event.
      *
      * @param failureHandler consumer handing the exception.
@@ -27,8 +41,6 @@ public interface EventListenerBuilder<E extends Event> {
     @CanIgnoreReturnValue
     @OptionalBuilderArgument
     EventListenerBuilder<E> failure(@NotNull Consumer<Throwable> failureHandler);
-
-    EventListenerBuilder<E>
 
     /**
      * Sets the filter of this listener, if the condition do not match the event will not go through the listener.

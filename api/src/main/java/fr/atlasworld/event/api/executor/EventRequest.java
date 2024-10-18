@@ -11,7 +11,9 @@ public interface EventRequest {
      * Executes the request on the current thread.
      * <br>
      * This will <b>block</b> the current thread the time that the event is being handled by the current listener.
+     *
+     * @throws Throwable if the listener failed execution.
      */
     @Blocking
-    void execute();
+    void execute() throws Throwable;
 }
