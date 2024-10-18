@@ -1,89 +1,92 @@
 plugins {
-    id 'java-library'
-    id 'maven-publish'
-    id 'idea'
-    id 'eclipse'
+    id 'java'
     id 'org.ajoberstar.grgit' version '5.2.1'
 }
 
-group = "${project_group}"
-version = "${project_version}"
+allprojects {
+    apply plugin: 'idea'
+    apply plugin: 'eclipse'
 
-repositories {
-    mavenCentral()
-    maven {
-        url "https://repository.atlasworld.fr/repository/maven-public/"
-    }
-}
+    group = "${project_group}"
+    version = "${project_version}"
 
-dependencies {
-    api "fr.atlasworld.common:common:${atlas_common_version}"
-}
-
-eclipse {
-    classpath {
-        downloadSources = true
-    }
-}
-
-idea {
-    module {
-        downloadSources = true
-    }
-}
-
-compileJava {
-    options.encoding = "UTF-8"
-}
-
-java {
-    toolchain.languageVersion.set(JavaLanguageVersion.of(project.java_version))
-
-    withJavadocJar()
-    withSourcesJar()
-}
-
-publishing {
-    boolean isSnapshot = System.getenv("RELEASE") != 'true';
-
-    repositories {
-        maven {
-            name 'AtlasWorld-Repo'
-
-            def release = "https://repository.atlasworld.fr/repository/maven-release/"
-            def snapshot = "https://repository.atlasworld.fr/repository/maven-snapshot/"
-            url = isSnapshot ? snapshot : release
-
-            credentials {
-                username = System.getenv("AW_REPO_USERNAME")
-                password = System.getenv("AW_REPO_PASSWORD")
-            }
-
-            metadataSources {
-                gradleMetadata()
-            }
+    eclipse {
+        classpath {
+            downloadSources = true
         }
     }
-    publications {
-        AtlasCommon(MavenPublication) {
-            from components.java
 
-            def snapshot = "${project_version}-${grgit.head().id.subSequence(0, 5)}"
+    idea {
+        module {
+            downloadSources = true
+        }
+    }
 
-            try {
-                version = isSnapshot ? snapshot : grgit.tag.list().get(0).getName();
-            } catch (IndexOutOfBoundsException e) {
-                version = "undefined"
+    compileJava {
+        options.encoding = "UTF-8"
+    }
+
+    repositories {
+        mavenCentral()
+        maven {
+            url "https://repository.atlasworld.fr/repository/maven-public/"
+        }
+    }
+
+    java {
+        toolchain.languageVersion.set(JavaLanguageVersion.of(project.java_version))
+
+        withJavadocJar()
+        withSourcesJar()
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'maven-publish'
+
+    publishing {
+        boolean isSnapshot = System.getenv("RELEASE") != 'true';
+
+        repositories {
+            maven {
+                name 'AtlasWorld-Repo'
+
+                def release = "https://repository.atlasworld.fr/repository/maven-release/"
+                def snapshot = "https://repository.atlasworld.fr/repository/maven-snapshot/"
+                url = isSnapshot ? snapshot : release
+
+                credentials {
+                    username = System.getenv("AW_REPO_USERNAME")
+                    password = System.getenv("AW_REPO_PASSWORD")
+                }
+
+                metadataSources {
+                    gradleMetadata()
+                }
             }
+        }
+        publications {
+            AtlasCommon(MavenPublication) {
+                from components.java
 
-            pom {
-                name = 'AtlasCommon'
-                description = 'Common Code Utilities for AtlasWorld.'
-                licenses {
-                    license {
-                        name = 'GNU-GPL-v2.0'
+                def snapshot = "${project_version}-${grgit.head().id.subSequence(0, 5)}"
 
-                        url = 'https://github.com/AtlasWorldMC/EventFlow/blob/master/LICENSE'
+                try {
+                    version = isSnapshot ? snapshot : grgit.tag.list().get(0).getName();
+                } catch (IndexOutOfBoundsException e) {
+                    version = "undefined"
+                }
+
+                pom {
+                    name = project.name
+                    description = project.description
+                    licenses {
+                        license {
+                            name = 'GNU-GPL-v2.0'
+
+                            url = 'https://github.com/AtlasWorldMC/EventFlow/blob/master/LICENSE'
+                        }
                     }
                 }
             }

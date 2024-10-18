@@ -1,2 +1,5 @@
 rootProject.name = 'EventFlow'
+include 'api'
+include 'core'
+include 'flow'
 
