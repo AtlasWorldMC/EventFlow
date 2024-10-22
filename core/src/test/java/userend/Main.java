@@ -33,7 +33,7 @@ public class Main {
 
         while (true) {
             int executor = random.nextInt(0, threads.size());
-            long nextQueue = random.nextLong(10000);
+            long nextQueue = random.nextLong(1000);
 
             threads.get(executor).queue(() -> System.out.println("Next task will be scheduled in " + nextQueue + "ms."));
 

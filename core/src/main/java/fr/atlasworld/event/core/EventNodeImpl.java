@@ -62,9 +62,14 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
             builder.add(node.propagateEvent(event));
         }
 
-        for (RegisteredListener<E> listener : this.listeners.get(event.getClass())) {
-            builder.add(listener.callEvent(event));
+        if (this.listeners.containsKey(event.getClass())) {
+            for (RegisteredListener<E> listener : this.listeners.get(event.getClass())) {
+                builder.add(listener.callEvent(event));
+            }
         }
+
+        // Bad Design, TODO (AtlasCommon): Allow Composite Future actions to be empty.
+        builder.add(new SimpleFutureAction<>().complete(null)); // Prevents IllegalArgument if the event was executed nowhere.
 
         SimpleFutureAction<T> future = new SimpleFutureAction<>();
         FutureAction<Void> groupedFuture = builder.build();
