@@ -24,7 +24,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly "fr.atlasworld.event:flow:${eventflow_version}"
+    implementation "fr.atlasworld.event:flow:${eventflow_version}"
 }
 ````
 
