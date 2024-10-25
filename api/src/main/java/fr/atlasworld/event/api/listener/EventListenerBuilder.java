@@ -78,29 +78,4 @@ public interface EventListenerBuilder<E extends Event> {
     @CanIgnoreReturnValue
     @OptionalBuilderArgument
     EventListenerBuilder<E> expireWhen(@NotNull Predicate<E> condition);
-
-    /**
-     * Makes the listener expire when a specific event is received.
-     *
-     * @param eventType expiration event.
-     *
-     * @return instance of this builder.
-     */
-    @NotNull
-    @CanIgnoreReturnValue
-    @OptionalBuilderArgument
-    <T extends Event> EventListenerBuilder<E> expireWhen(@NotNull Class<T> eventType);
-
-    /**
-     * Sets the expiration condition of this listener.
-     *
-     * @param eventType expiration event.
-     * @param condition predicate containing the condition.
-     *
-     * @return instance of this builder.
-     */
-    @NotNull
-    @CanIgnoreReturnValue
-    @OptionalBuilderArgument
-    <T extends Event> EventListenerBuilder<E> expireWhen(@NotNull Class<T> eventType, @NotNull Consumer<T> condition);
 }

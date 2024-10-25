@@ -18,13 +18,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+@ThreadSafe
 public class EventNodeImpl<E extends Event> implements EventNode<E> {
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -34,6 +37,8 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     private final Map<String, EventNodeImpl<?>> children;
     private final Map<Class<? extends E>, List<RegisteredListener<E>>> listeners;
 
+    private final AtomicInteger parents;
+
     public EventNodeImpl(String name, Class<E> eventType, Predicate<E> eventCondition) {
         this.name = name;
         this.eventType = eventType;
@@ -42,6 +47,19 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
 
         this.children = new ConcurrentHashMap<>();
         this.listeners = new ConcurrentHashMap<>();
+        this.parents = new AtomicInteger(0);
+    }
+
+    public void addParent() {
+        this.parents.incrementAndGet();
+    }
+
+    public void removeParent() {
+        this.parents.decrementAndGet();
+    }
+
+    public boolean hasParents() {
+        return this.parents.get() <= 0;
     }
 
     @Override
@@ -53,6 +71,14 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     public @NotNull <T extends E> FutureAction<T> callEvent(@NotNull T event) {
         Preconditions.checkNotNull(event);
 
+        if (this.hasParents())
+            throw new UnsupportedOperationException("Current node is not the root of the tree! " +
+                    "Events must get called on the root node.");
+
+        return this.invokeEvent(event);
+    }
+
+    private <T extends E> FutureAction<T> invokeEvent(@NotNull T event) {
         if (!this.eventCondition.test(event))
             return new SimpleFutureAction<T>().complete(event);
 
@@ -64,6 +90,12 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
 
         if (this.listeners.containsKey(event.getClass())) {
             for (RegisteredListener<E> listener : this.listeners.get(event.getClass())) {
+                if (listener.isExpired(event)) {
+                    // Clear expired listeners, less computing required for next call and loses reference for GC.
+                    this.listeners.get(event.getClass()).remove(listener);
+                    continue;
+                }
+
                 builder.add(listener.callEvent(event));
             }
         }
@@ -86,7 +118,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         if (!this.eventType.isInstance(event)) // Check if the event is the same as this event type.
             return new SimpleFutureAction<T>().complete(event);
 
-        return (FutureAction<T>) this.callEvent((E) event);
+        return (FutureAction<T>) this.invokeEvent((E) event);
     }
 
     @Override
@@ -94,7 +126,10 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(node);
         Preconditions.checkArgument(node instanceof EventNodeImpl, "Unsupported EventNode.");
 
-        this.children.put(node.name(), (EventNodeImpl<?>) node);
+        EventNodeImpl<T> nodeImpl = (EventNodeImpl<T>) node;
+        nodeImpl.addParent();
+
+        this.children.put(node.name(), nodeImpl);
     }
 
     @Override
@@ -102,6 +137,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(name);
 
         EventNodeImpl<E> node = new EventNodeImpl<>(name, this.eventType, null);
+        node.addParent();
 
         this.children.put(name, node);
         return node;
@@ -113,6 +149,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(filter);
 
         EventNodeImpl<E> node = new EventNodeImpl<>(name, this.eventType, filter);
+        node.addParent();
 
         this.children.put(name, node);
         return node;
@@ -124,6 +161,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(eventType);
 
         EventNodeImpl<T> node = new EventNodeImpl<>(name, eventType, null);
+        node.addParent();
 
         this.children.put(name, node);
         return node;
@@ -136,6 +174,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         Preconditions.checkNotNull(filter);
 
         EventNodeImpl<T> node = new EventNodeImpl<>(name, eventType, filter);
+        node.addParent();
 
         this.children.put(name, node);
         return node;
@@ -145,14 +184,18 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     public @Nullable EventNode<?> removeChildNode(@NotNull String name) {
         Preconditions.checkNotNull(name);
 
-        return this.children.remove(name);
+        EventNodeImpl<?> node = this.children.remove(name);
+        if (node != null)
+            node.removeParent();
+
+        return node;
     }
 
     @Override
     public @Nullable EventNode<?> removeChildNode(@NotNull EventNode<?> node) {
         Preconditions.checkNotNull(node);
 
-        return this.children.remove(node.name());
+        return this.removeChildNode(node.name());
     }
 
     @Override
@@ -217,7 +260,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
                         listenerClass.getSimpleName(), method.getName());
 
                 // Even if it is a valid listener method,
-                // it's a waste to register a listener that will never be called.
+                // it's a waste to register a listener that will never get called.
                 continue;
             }
 

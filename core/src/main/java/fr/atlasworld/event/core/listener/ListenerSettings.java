@@ -1,12 +1,12 @@
 package fr.atlasworld.event.core.listener;
 
 import com.google.common.base.Preconditions;
-import fr.atlasworld.common.exception.NotImplementedException;
 import fr.atlasworld.event.api.Event;
 import fr.atlasworld.event.api.executor.EventExecutor;
 import fr.atlasworld.event.api.listener.EventListenerBuilder;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -14,14 +14,24 @@ import java.util.function.Predicate;
 public class ListenerSettings<E extends Event> {
     private final EventExecutor executor;
     private final Consumer<Throwable> failureHandler;
-    private final Predicate<E> filter;
     private final AtomicInteger expireCount;
 
-    private ListenerSettings(EventExecutor executor, Consumer<Throwable> failureHandler, Predicate<E> filter, int expireCount) {
+    private final List<Predicate<E>> filters;
+    private final List<Predicate<E>> expireConditions;
+
+    private final boolean countExpires;
+
+    private ListenerSettings(EventExecutor executor, Consumer<Throwable> failureHandler, int expireCount,
+                             List<Predicate<E>> filters, List<Predicate<E>> expireConditions) {
+
         this.executor = executor;
         this.failureHandler = failureHandler;
-        this.filter = filter;
         this.expireCount = new AtomicInteger(expireCount);
+
+        this.countExpires = expireCount > 0;
+
+        this.filters = Collections.unmodifiableList(filters);
+        this.expireConditions = Collections.unmodifiableList(expireConditions);
     }
 
     public EventExecutor executor() {
@@ -32,24 +42,42 @@ public class ListenerSettings<E extends Event> {
         return this.failureHandler;
     }
 
-    public Predicate<E> filter() {
-        return this.filter;
+    public boolean testEvent(E event) {
+        for (Predicate<E> filter : this.filters) {
+            if (!filter.test(event))
+                return false;
+        }
+
+        return true;
     }
 
-    public int expireCount() {
-        return this.expireCount.get();
+    public boolean expired(E event) {
+        for (Predicate<E> condition : this.expireConditions) {
+            if (condition.test(event))
+                return true;
+        }
+
+        if (this.countExpires) {
+            return this.expireCount.getAndDecrement() <= 0;
+        }
+
+        return false;
     }
 
     public static class Builder<E extends Event> implements EventListenerBuilder<E> {
         private EventExecutor executor;
         private Consumer<Throwable> failureHandler;
-        private Predicate<E> filter;
         private int expireCount;
+
+        private final List<Predicate<E>> filter;
+        private final List<Predicate<E>> expireConditions;
 
         public Builder() {
             this.failureHandler = cause -> {};
-            this.filter = cause -> true;
             this.expireCount = 0;
+
+            this.filter = new ArrayList<>();
+            this.expireConditions = new ArrayList<>();
         }
 
         @Override
@@ -72,7 +100,7 @@ public class ListenerSettings<E extends Event> {
         public @NotNull EventListenerBuilder<E> filter(@NotNull Predicate<E> filter) {
             Preconditions.checkNotNull(filter);
 
-            this.filter = filter;
+            this.filter.add(filter);
             return this;
         }
 
@@ -84,24 +112,18 @@ public class ListenerSettings<E extends Event> {
 
         @Override
         public @NotNull EventListenerBuilder<E> expireWhen(@NotNull Predicate<E> condition) {
-            throw new NotImplementedException();
-        }
+            Preconditions.checkNotNull(condition);
 
-        @Override
-        public @NotNull <T extends Event> EventListenerBuilder<E> expireWhen(@NotNull Class<T> eventType) {
-            throw new NotImplementedException();
-        }
-
-        @Override
-        public @NotNull <T extends Event> EventListenerBuilder<E> expireWhen(@NotNull Class<T> eventType, @NotNull Consumer<T> condition) {
-            throw new NotImplementedException();
+            this.expireConditions.add(condition);
+            return this;
         }
 
         public ListenerSettings<E> build() {
             if (this.executor == null)
                 throw new IllegalStateException("No event executor set.");
 
-            return new ListenerSettings<>(this.executor, this.failureHandler, this.filter, this.expireCount);
+            return new ListenerSettings<>(this.executor, this.failureHandler, this.expireCount, this.filter,
+                    this.expireConditions);
         }
     }
 }
