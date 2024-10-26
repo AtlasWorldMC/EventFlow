@@ -3,12 +3,18 @@ plugins {
     id 'org.ajoberstar.grgit' version '5.2.1'
 }
 
+boolean isSnapshot = System.getenv("RELEASE") != 'true';
+
 allprojects {
     apply plugin: 'idea'
     apply plugin: 'eclipse'
 
     group = "${project_group}"
-    version = "${project_version}"
+    try {
+        version = isSnapshot ? grgit.head().id.subSequence(0, 5) : grgit.tag.list().get(0).getName();
+    } catch (IndexOutOfBoundsException e) {
+        version = "undefined"
+    }
 
     eclipse {
         classpath {
@@ -46,8 +52,6 @@ subprojects {
     apply plugin: 'maven-publish'
 
     publishing {
-        boolean isSnapshot = System.getenv("RELEASE") != 'true';
-
         repositories {
             maven {
                 name 'AtlasWorld-Repo'
@@ -70,21 +74,12 @@ subprojects {
             AtlasCommon(MavenPublication) {
                 from components.java
 
-                def snapshot = "${project_version}-${grgit.head().id.subSequence(0, 5)}"
-
-                try {
-                    version = isSnapshot ? snapshot : grgit.tag.list().get(0).getName();
-                } catch (IndexOutOfBoundsException e) {
-                    version = "undefined"
-                }
-
                 pom {
                     name = project.name
                     description = project.description
                     licenses {
                         license {
                             name = 'GNU-GPL-v2.0'
-
                             url = 'https://github.com/AtlasWorldMC/EventFlow/blob/master/LICENSE'
                         }
                     }
