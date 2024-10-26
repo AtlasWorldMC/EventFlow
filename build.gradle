@@ -46,7 +46,7 @@ subprojects {
     apply plugin: 'maven-publish'
 
     publishing {
-        boolean isSnapshot = System.getenv("RELEASE") != 'true';
+        boolean isSnapshot = false
 
         repositories {
             maven {
