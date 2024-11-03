@@ -255,7 +255,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
                 continue;
             }
 
-            if (this.eventType.isAssignableFrom(parameter.getType())) {
+            if (!this.eventType.isAssignableFrom(parameter.getType())) {
                 LOGGER.debug("WARN: Method {}#{} parameter event will never get called, event doesn't inherit this node event type.",
                         listenerClass.getSimpleName(), method.getName());
 
