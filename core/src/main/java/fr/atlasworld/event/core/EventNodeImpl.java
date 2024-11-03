@@ -59,7 +59,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     }
 
     public boolean hasParents() {
-        return this.parents.get() <= 0;
+        return this.parents.get() > 0;
     }
 
     @Override
