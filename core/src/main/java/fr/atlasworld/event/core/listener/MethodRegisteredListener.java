@@ -17,11 +17,8 @@ public class MethodRegisteredListener<E extends Event> extends RegisteredListene
     }
 
     @Override
-    public void run(@NotNull Event event) {
-        try {
-            this.method.invoke(this.instance, event);
-        } catch (Throwable cause) {
-            this.handleException(cause);
-        }
+    public void run(@NotNull Event event) throws Exception {
+        this.method.setAccessible(true);
+        this.method.invoke(this.instance, event);
     }
 }

@@ -81,7 +81,7 @@ public class ListenerSettings<E extends Event> {
         }
 
         @Override
-        public @NotNull EventListenerBuilder<E> executor(@NotNull EventExecutor executor) {
+        public @NotNull Builder<E> executor(@NotNull EventExecutor executor) {
             Preconditions.checkNotNull(executor);
 
             this.executor = executor;
@@ -89,7 +89,7 @@ public class ListenerSettings<E extends Event> {
         }
 
         @Override
-        public @NotNull EventListenerBuilder<E> failure(@NotNull Consumer<Throwable> failureHandler) {
+        public @NotNull Builder<E> failure(@NotNull Consumer<Throwable> failureHandler) {
             Preconditions.checkNotNull(failureHandler);
 
             this.failureHandler = failureHandler;
@@ -97,7 +97,7 @@ public class ListenerSettings<E extends Event> {
         }
 
         @Override
-        public @NotNull EventListenerBuilder<E> filter(@NotNull Predicate<E> filter) {
+        public @NotNull Builder<E> filter(@NotNull Predicate<E> filter) {
             Preconditions.checkNotNull(filter);
 
             this.filter.add(filter);
@@ -105,13 +105,13 @@ public class ListenerSettings<E extends Event> {
         }
 
         @Override
-        public @NotNull EventListenerBuilder<E> expireCount(int executions) {
+        public @NotNull Builder<E> expireCount(int executions) {
             this.expireCount = Math.max(executions, 0);
             return this;
         }
 
         @Override
-        public @NotNull EventListenerBuilder<E> expireWhen(@NotNull Predicate<E> condition) {
+        public @NotNull Builder<E> expireWhen(@NotNull Predicate<E> condition) {
             Preconditions.checkNotNull(condition);
 
             this.expireConditions.add(condition);

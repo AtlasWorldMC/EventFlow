@@ -17,7 +17,7 @@ public abstract class RegisteredListener<E extends Event> {
         this.expired = new AtomicBoolean(false);
     }
 
-    public abstract void run(@NotNull E event);
+    public abstract void run(@NotNull E event) throws Throwable;
 
     protected final void handleException(Throwable cause) {
         this.settings.failureHandler().accept(cause);
@@ -44,7 +44,10 @@ public abstract class RegisteredListener<E extends Event> {
         try {
             this.settings.executor().request(() -> this.run(event))
                     .onSuccess(unused -> future.complete(event))
-                    .onFailure(future::fail); // Proxying future.
+                    .onFailure(cause -> {
+                        this.handleException(cause);
+                        future.fail(cause);
+                    }); // Proxying future.
         } catch (InterruptedException e) {
             future.fail(e);
         }

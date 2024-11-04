@@ -89,7 +89,10 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         }
 
         if (this.listeners.containsKey(event.getClass())) {
-            for (RegisteredListener<E> listener : this.listeners.get(event.getClass())) {
+            List<RegisteredListener<E>> listeners = this.listeners.get(event.getClass());
+
+            for (int i = 0; i < listeners.size(); i++) {
+                RegisteredListener<E> listener = listeners.get(i);
                 if (listener.isExpired(event)) {
                     // Clear expired listeners, less computing required for next call and loses reference for GC.
                     this.listeners.get(event.getClass()).remove(listener);

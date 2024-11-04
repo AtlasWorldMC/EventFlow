@@ -13,11 +13,7 @@ public class LambdaRegisteredListener<E extends Event> extends RegisteredListene
     }
 
     @Override
-    public void run(@NotNull E event) {
-        try {
-            this.handler.handle(event);
-        } catch (Throwable cause) {
-            this.handleException(cause);
-        }
+    public void run(@NotNull E event) throws Throwable {
+        this.handler.handle(event);
     }
 }
