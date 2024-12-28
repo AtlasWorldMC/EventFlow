@@ -36,7 +36,7 @@ public final class EventListenerTests {
                 builder.executor(EventExecutor.syncExecutor)
         );
 
-        eventNode.callEvent(new TestEvent()).onSuccess(event -> {
+        eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertEquals(1, counter.get(), "Lambda listener should be executed once.");
         });
     }
@@ -47,7 +47,7 @@ public final class EventListenerTests {
         TestListener listener = new TestListener();
         eventNode.addListener(listener, builder -> builder.executor(EventExecutor.syncExecutor));
 
-        eventNode.callEvent(new TestEvent()).onSuccess(event -> {
+        eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertTrue(listener.isCalled(), "Method listener should be executed once.");
         });
     }
@@ -63,11 +63,11 @@ public final class EventListenerTests {
                 .failure(Throwable::printStackTrace)
         );
 
-        eventNode.callEvent(new TestEvent()).onSuccess(event -> {
+        eventNode.callEvent(new TestEvent()).whenComplete(((event, cause) -> {
             assertEquals(1, counter.get(), "Listener should be executed once.");
-        });
+        }));
 
-        eventNode.callEvent(new TestEvent()).onSuccess(event -> {
+        eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertEquals(1, counter.get(), "Expired listener should not be executed again.");
         });
     }
@@ -82,7 +82,7 @@ public final class EventListenerTests {
                 .executor(EventExecutor.syncExecutor)
         );
 
-        eventNode.callEvent(new TestEvent()).onSuccess(event -> {
+        eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertEquals(1, counter.get(), "Listener should be executed when filter passes.");
         });
 
@@ -93,7 +93,7 @@ public final class EventListenerTests {
                 .executor(EventExecutor.syncExecutor)
         );
 
-        eventNode.callEvent(new TestEvent()).onSuccess(event -> {
+        eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertEquals(0, counter.get(), "Listener should not be executed when filter fails.");
         });
     }
@@ -110,9 +110,11 @@ public final class EventListenerTests {
 
         eventNode.addListener(TestEvent.class, event -> { throw new RuntimeException("Test exception"); }, builder ->
                 builder.executor(EventExecutor.syncExecutor));
-        eventNode.callEvent(new TestEvent()).onFailure(throwable -> {
+
+        eventNode.callEvent(new TestEvent()).exceptionally(throwable -> {
             called.set(true);
-        }).syncUninterruptibly();
+            return null;
+        }).join();
 
         assertTrue(called.get(), "Thrown exception should be returned in exception.");
     }

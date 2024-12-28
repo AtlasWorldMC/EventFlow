@@ -94,7 +94,7 @@ public class TaskExecutorThread extends Thread {
         Preconditions.checkNotNull(runnable, "Task cannot be null!");
 
         TaskScheduledEvent event = new TaskScheduledEvent(Thread.currentThread(), this);
-        Main.rootNode.callEvent(event).syncUninterruptibly();
+        Main.rootNode.callEvent(event).join();
 
         if (event.cancelled())
             return false;

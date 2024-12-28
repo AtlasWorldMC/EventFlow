@@ -1,8 +1,8 @@
 package fr.atlasworld.event.api.executor;
 
-import fr.atlasworld.common.concurrent.action.FutureAction;
-import fr.atlasworld.common.concurrent.action.SimpleFutureAction;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Represents an event executor, this allows event to be executed asynchronously.
@@ -21,7 +21,7 @@ public interface EventExecutor {
      *
      * @throws InterruptedException when the requesting thread is interrupted.
      */
-    FutureAction<Void> request(@NotNull EventRequest request) throws InterruptedException;
+    CompletableFuture<Void> request(@NotNull EventRequest request) throws InterruptedException;
 
     /**
      * Synchronous executor,
@@ -31,13 +31,13 @@ public interface EventExecutor {
      * This could lead to much slower executions on event that have many listeners.
      */
     final EventExecutor syncExecutor = request -> {
-        SimpleFutureAction<Void> future = new SimpleFutureAction<>();
+        CompletableFuture<Void> future = new CompletableFuture<>();
 
         try {
             request.execute();
             future.complete(null);
         } catch (final Throwable e) {
-            future.fail(e);
+            future.completeExceptionally(e);
         }
 
         return future;

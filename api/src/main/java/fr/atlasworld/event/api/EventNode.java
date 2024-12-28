@@ -2,7 +2,6 @@ package fr.atlasworld.event.api;
 
 import com.google.common.base.Preconditions;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
-import fr.atlasworld.common.concurrent.action.FutureAction;
 import fr.atlasworld.event.api.listener.EventHandler;
 import fr.atlasworld.event.api.listener.EventListener;
 import fr.atlasworld.event.api.listener.EventListenerBuilder;
@@ -11,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -108,7 +108,7 @@ public interface EventNode<E extends Event> {
      */
     @NotNull
     @CanIgnoreReturnValue
-    <T extends E> FutureAction<T> callEvent(@NotNull T event);
+    <T extends E> CompletableFuture<T> callEvent(@NotNull T event);
 
     /**
      * Adds a child node to this node.

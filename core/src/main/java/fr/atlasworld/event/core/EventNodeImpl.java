@@ -1,9 +1,6 @@
 package fr.atlasworld.event.core;
 
 import com.google.common.base.Preconditions;
-import fr.atlasworld.common.concurrent.action.CompositeFutureAction;
-import fr.atlasworld.common.concurrent.action.FutureAction;
-import fr.atlasworld.common.concurrent.action.SimpleFutureAction;
 import fr.atlasworld.common.logging.LogUtils;
 import fr.atlasworld.event.api.Event;
 import fr.atlasworld.event.api.EventNode;
@@ -22,6 +19,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -68,7 +66,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     }
 
     @Override
-    public @NotNull <T extends E> FutureAction<T> callEvent(@NotNull T event) {
+    public @NotNull <T extends E> CompletableFuture<T> callEvent(@NotNull T event) {
         Preconditions.checkNotNull(event);
 
         if (this.hasParents())
@@ -78,14 +76,14 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
         return this.invokeEvent(event);
     }
 
-    private <T extends E> FutureAction<T> invokeEvent(@NotNull T event) {
+    private <T extends E> CompletableFuture<T> invokeEvent(@NotNull T event) {
         if (!this.eventCondition.test(event))
-            return new SimpleFutureAction<T>().complete(event);
+            return CompletableFuture.completedFuture(event);
 
-        CompositeFutureAction.CompositeBuilder builder = CompositeFutureAction.builder();
+        List<CompletableFuture<?>> futures = new ArrayList<>();
 
         for (EventNodeImpl<?> node : this.children.values()) {
-            builder.add(node.propagateEvent(event));
+            futures.add(node.propagateEvent(event));
         }
 
         if (this.listeners.containsKey(event.getClass())) {
@@ -99,29 +97,22 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
                     continue;
                 }
 
-                builder.add(listener.callEvent(event));
+                futures.add(listener.callEvent(event));
             }
         }
 
-        // Bad Design, TODO (AtlasCommon): Allow Composite Future actions to be empty.
-        builder.add(new SimpleFutureAction<>().complete(null)); // Prevents IllegalArgument if the event was executed nowhere.
-
-        SimpleFutureAction<T> future = new SimpleFutureAction<>();
-        FutureAction<Void> groupedFuture = builder.build();
-        groupedFuture.onFailure(future::fail)
-                .onSuccess(unused -> future.complete(event));
-
-        return future;
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> event);
     }
 
     @SuppressWarnings("unchecked")
-    protected <T extends Event> FutureAction<T> propagateEvent(@NotNull T event) {
+    protected <T extends Event> CompletableFuture<T> propagateEvent(@NotNull T event) {
         Preconditions.checkNotNull(event);
 
         if (!this.eventType.isInstance(event)) // Check if the event is the same as this event type.
-            return new SimpleFutureAction<T>().complete(event);
+            return CompletableFuture.completedFuture(event);
 
-        return (FutureAction<T>) this.invokeEvent((E) event);
+        return (CompletableFuture<T>) this.invokeEvent((E) event);
     }
 
     @Override

@@ -1,10 +1,9 @@
 package fr.atlasworld.event.core.listener;
 
-import fr.atlasworld.common.concurrent.action.FutureAction;
-import fr.atlasworld.common.concurrent.action.SimpleFutureAction;
 import fr.atlasworld.event.api.Event;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class RegisteredListener<E extends Event> {
@@ -35,21 +34,18 @@ public abstract class RegisteredListener<E extends Event> {
         return false;
     }
 
-    public FutureAction<E> callEvent(@NotNull E event) {
-        SimpleFutureAction<E> future = new SimpleFutureAction<>();
-
+    public CompletableFuture<E> callEvent(@NotNull E event) {
         if (this.expired.get() && !this.settings.testEvent(event))
-            return future.complete(null);
+            return CompletableFuture.completedFuture(event);
+
+        CompletableFuture<E> future;
 
         try {
-            this.settings.executor().request(() -> this.run(event))
-                    .onSuccess(unused -> future.complete(event))
-                    .onFailure(cause -> {
-                        this.handleException(cause);
-                        future.fail(cause);
-                    }); // Proxying future.
+            future = CompletableFuture.allOf(
+                    this.settings.executor().request(() -> this.run(event)))
+                    .thenApply(unused -> event);
         } catch (InterruptedException e) {
-            future.fail(e);
+            future = CompletableFuture.failedFuture(e);
         }
 
         return future;
