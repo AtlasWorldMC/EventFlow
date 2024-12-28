@@ -73,18 +73,19 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
             throw new UnsupportedOperationException("Current node is not the root of the tree! " +
                     "Events must get called on the root node.");
 
-        return this.invokeEvent(event);
+        return this.invokeEvent(event, new EventContext());
     }
 
-    private <T extends E> CompletableFuture<T> invokeEvent(@NotNull T event) {
+    private <T extends E> CompletableFuture<T> invokeEvent(@NotNull T event, @NotNull EventContext ctx) {
+        ctx.registerCalled(this);
+
         if (!this.eventCondition.test(event))
             return CompletableFuture.completedFuture(event);
 
         List<CompletableFuture<?>> futures = new ArrayList<>();
 
-        for (EventNodeImpl<?> node : this.children.values()) {
-            futures.add(node.propagateEvent(event));
-        }
+        for (EventNodeImpl<?> node : this.children.values())
+            futures.add(node.propagateEvent(event, ctx));
 
         if (this.listeners.containsKey(event.getClass())) {
             List<RegisteredListener<E>> listeners = this.listeners.get(event.getClass());
@@ -92,7 +93,7 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
             for (int i = 0; i < listeners.size(); i++) {
                 RegisteredListener<E> listener = listeners.get(i);
                 if (listener.isExpired(event)) {
-                    // Clear expired listeners, less computing required for next call and loses reference for GC.
+                    // Clear expired listeners, less computing required for next event call and loses reference for GC.
                     this.listeners.get(event.getClass()).remove(listener);
                     continue;
                 }
@@ -106,13 +107,17 @@ public class EventNodeImpl<E extends Event> implements EventNode<E> {
     }
 
     @SuppressWarnings("unchecked")
-    protected <T extends Event> CompletableFuture<T> propagateEvent(@NotNull T event) {
+    private <T extends Event> CompletableFuture<T> propagateEvent(@NotNull T event, @NotNull EventContext ctx) {
         Preconditions.checkNotNull(event);
+        Preconditions.checkNotNull(ctx);
+
+        if (ctx.wasCalled(this))
+            return CompletableFuture.completedFuture(event);
 
         if (!this.eventType.isInstance(event)) // Check if the event is the same as this event type.
             return CompletableFuture.completedFuture(event);
 
-        return (CompletableFuture<T>) this.invokeEvent((E) event);
+        return (CompletableFuture<T>) this.invokeEvent((E) event, ctx);
     }
 
     @Override
