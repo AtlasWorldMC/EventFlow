@@ -32,9 +32,7 @@ public final class EventListenerTests {
     public void testAddAndExecuteLambdaListener() {
         AtomicInteger counter = new AtomicInteger(0);
 
-        eventNode.addListener(TestEvent.class, event -> counter.incrementAndGet(), builder ->
-                builder.executor(EventExecutor.syncExecutor)
-        );
+        eventNode.addListener(TestEvent.class, event -> counter.incrementAndGet());
 
         eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertEquals(1, counter.get(), "Lambda listener should be executed once.");
@@ -45,7 +43,7 @@ public final class EventListenerTests {
     @DisplayName("Test adding and executing a method listener")
     public void testAddAndExecuteMethodListener() {
         TestListener listener = new TestListener();
-        eventNode.addListener(listener, builder -> builder.executor(EventExecutor.syncExecutor));
+        eventNode.addListener(listener);
 
         eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
             assertTrue(listener.isCalled(), "Method listener should be executed once.");
@@ -59,7 +57,6 @@ public final class EventListenerTests {
 
         eventNode.addListener(TestEvent.class, event -> counter.incrementAndGet(), builder -> builder
                 .expireCount(1)
-                .executor(EventExecutor.syncExecutor)
                 .failure(Throwable::printStackTrace)
         );
 
@@ -79,7 +76,6 @@ public final class EventListenerTests {
         eventNode.addListener(TestEvent.class, event -> counter.incrementAndGet(), builder -> builder
                 .filter(event -> true)
                 .expireCount(1)
-                .executor(EventExecutor.syncExecutor)
         );
 
         eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {
@@ -90,7 +86,6 @@ public final class EventListenerTests {
         eventNode.addListener(TestEvent.class, event -> counter.incrementAndGet(), builder -> builder
                 .filter(event -> false)
                 .expireCount(1)
-                .executor(EventExecutor.syncExecutor)
         );
 
         eventNode.callEvent(new TestEvent()).whenComplete((event, cause) -> {

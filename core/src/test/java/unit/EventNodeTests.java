@@ -85,9 +85,7 @@ public final class EventNodeTests {
         child2.addChildNode(grandChild);
 
         AtomicInteger callCount = new AtomicInteger(0);
-        grandChild.addListener(TestEvent.class, event -> {
-            callCount.incrementAndGet();
-        }, builder -> builder.executor(EventExecutor.syncExecutor));
+        grandChild.addListener(TestEvent.class, event -> callCount.incrementAndGet());
 
         rootNode.callEvent(new TestEvent());
 
