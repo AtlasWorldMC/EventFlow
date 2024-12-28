@@ -2,10 +2,13 @@ package unit;
 
 import fr.atlasworld.event.api.Event;
 import fr.atlasworld.event.api.EventNode;
+import fr.atlasworld.event.api.executor.EventExecutor;
 import fr.atlasworld.event.core.EventNodeImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -69,5 +72,25 @@ public final class EventNodeTests {
 
         assertTrue(rootNode.children().isEmpty(), "Root node should have no children after removal.");
         assertFalse(childNode.hasParents(), "Removed child node should have no parents.");
+    }
+
+    @Test
+    @DisplayName("A node should only receive one event call")
+    public void testSingleEventCallNode() {
+        EventNode<Event> child1 = rootNode.createChildNode("child1");
+        EventNode<Event> child2 = rootNode.createChildNode("child2");
+        EventNode<Event> grandChild = EventNode.create("grand-child");
+
+        child1.addChildNode(grandChild);
+        child2.addChildNode(grandChild);
+
+        AtomicInteger callCount = new AtomicInteger(0);
+        grandChild.addListener(TestEvent.class, event -> {
+            callCount.incrementAndGet();
+        }, builder -> builder.executor(EventExecutor.syncExecutor));
+
+        rootNode.callEvent(new TestEvent());
+
+        assertEquals(1, callCount.get(), "Node should receive one event call.");
     }
 }
