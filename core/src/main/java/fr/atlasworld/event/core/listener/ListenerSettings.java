@@ -73,6 +73,7 @@ public class ListenerSettings<E extends Event> {
         private final List<Predicate<E>> expireConditions;
 
         public Builder() {
+            this.executor = EventExecutor.syncExecutor; // Use Sync Executor by default.
             this.failureHandler = cause -> {};
             this.expireCount = 0;
 
@@ -119,9 +120,6 @@ public class ListenerSettings<E extends Event> {
         }
 
         public ListenerSettings<E> build() {
-            if (this.executor == null)
-                throw new IllegalStateException("No event executor set.");
-
             return new ListenerSettings<>(this.executor, this.failureHandler, this.expireCount, this.filter,
                     this.expireConditions);
         }

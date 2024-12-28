@@ -27,7 +27,7 @@ public interface EventListenerBuilder<E extends Event> {
      */
     @NotNull
     @CanIgnoreReturnValue
-    @RequiredBuilderArgument
+    @OptionalBuilderArgument
     EventListenerBuilder<E> executor(@NotNull EventExecutor executor);
 
     /**

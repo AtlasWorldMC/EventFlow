@@ -201,6 +201,20 @@ public interface EventNode<E extends Event> {
     @NotNull
     Optional<EventNode<?>> child(String name);
 
+
+    /**
+     * Adds a listener to this node.
+     *
+     * @param event event to listen for.
+     * @param handler event handler.
+     *
+     * @param <T> event type.
+     * @throws NullPointerException if {@code eventClass} or {@code event} is {@code null}.
+     */
+    default <T extends E> void addListener(@NotNull Class<T> event, @NotNull EventHandler<T> handler) {
+        this.addListener(event, handler, builder -> {});
+    }
+
     /**
      * Adds a listener to this node.
      *
@@ -209,9 +223,20 @@ public interface EventNode<E extends Event> {
      * @param builder listener builder.
      *
      * @param <T> event type.
-     * @throws NullPointerException if {@code eventClass} or {@code builder} is {@code null}.
+     * @throws NullPointerException if {@code eventClass}, {@code handler} or {@code builder} is {@code null}.
      */
     <T extends E> void addListener(@NotNull Class<T> event, @NotNull EventHandler<T> handler, @NotNull Consumer<EventListenerBuilder<T>> builder);
+
+    /**
+     * Adds a {@link EventListener} class to this node.
+     *
+     * @param listener listener class.
+     *
+     * @throws NullPointerException if {@code listener} is {@code null}.
+     */
+    default void addListener(@NotNull EventListener listener) {
+        this.addListener(listener, builder -> {});
+    }
 
     /**
      * Adds a {@link EventListener} class to this node.
